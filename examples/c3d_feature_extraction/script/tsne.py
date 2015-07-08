@@ -4,10 +4,10 @@ import IPython
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import offsetbox
-from sklearn import (manifold, datasets, decomposition, ensemble, lda, random_projection, preprocessing)
+from sklearn import (manifold, datasets, decomposition, ensemble, lda, random_projection, preprocessing, covariance)
 from scipy import linalg
 import argparse
-import glob
+PATH_TO_DATA = 'data/8fps_nooverlap_conv5b_cropped_annotations/'
 
 all_segments = {'1': [(176, 248), (496, 566), (739, 780), (977, 1075), (1176,1236), (1352,1405)], '2': [(585, 640), (796, 830), (1267, 1284)],
 '3': [(695, 720), (857, 889), (1126, 1156), (1315, 1333), (1414, 1450)]}
@@ -15,7 +15,7 @@ all_segments = {'1': [(176, 248), (496, 566), (739, 780), (977, 1075), (1176,123
 color_map = {}
 index_map = {}
 
-def parse(PATH_TO_DATA):
+def parse():
 	eng = mateng.start_matlab()
 
 	[s, X] = eng.read_binary_blob(PATH_TO_DATA + '1.conv5b', nargout = 2)
@@ -122,7 +122,7 @@ def pca(X):
 	scaler = preprocessing.StandardScaler().fit(X)
 	X_centered = scaler.transform(X)
 	X_pca = decomposition.TruncatedSVD(n_components=40).fit_transform(X_centered)
-	tsne = manifold.TSNE(init = 'pca', learning_rate = 100)
+	tsne = manifold.TSNE(init = 'pca')
 	X_tsne = tsne.fit_transform(X_pca)
 	IPython.embed()
 	return X_tsne
@@ -141,7 +141,7 @@ def plot_all():
 	# Pre-processing
 	print "t-SNE Scaling"
 	X_scaled = preprocessing.scale(X) #zero mean, unit variance
-	IPython.embed()
+	# IPython.embed()
 	X_tsne_scaled = tsne.fit_transform(X_scaled)
 
 	#normalize the data (scaling individual samples to have unit norm)
@@ -152,17 +152,26 @@ def plot_all():
 
 	#whiten the data 
 	print "t-SNE Whitening"
-	scaler = preprocessing.StandardScaler(with_std=False).fit(X)
-	X_centered = scaler.transform(X)
+	# the mean computed by the scaler is for the feature dimension. 
+	# We want the normalization to be in feature dimention. 
+	# Zero mean for each sample assumes stationarity which is not necessarily true for CNN features.
+	# X: NxD where N is number of examples and D is number of features. 
 
-	IPython.embed()
+	# scaler = preprocessing.StandardScaler(with_std=False).fit(X)
+	scaler = preprocessing.StandardScaler().fit(X) #this scales each feature to have std-dev 1
+	X_centered = scaler.transform(X)
 
 	# U, s, Vh = linalg.svd(X_centered)
 	shapeX = X_centered.shape
 	IPython.embed()
-	sig = (1/shapeX[0])*np.dot(X_centered, X_centered.T)
+	# this is DxD matrix where D is the feature dimension
+	# still to figure out: It seems computation is not a problem but carrying around a 50kx50k matrix is memory killer!
+	sig = (1/shapeX[0]) * np.dot(X_centered.T, X_centered)
+	sig2= covariance.empirical_covariance(X_centered, assume_centered=True) #estimated -- this is better.
+	sig3, shrinkage= covariance.oas(X_centered, assume_centered=True) #estimated 
+
 	U, s, Vh = linalg.svd(sig, full_matrices=False)
-	eps = 1e-5
+	eps = 1e-2 # this affects how many low- freq eigevalues are eliminated
 	invS = np.diag (np.reciprocal(np.sqrt(s+eps)))
 
 	#PCA_whiten
@@ -176,20 +185,18 @@ def plot_all():
 	return X_tsne_scaled, X_tsne_norm, X_tsne_pca, X_tsne_zca
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser()
-	parser.add_argument("PATH_TO_DATA", help = "Please specify the path to data")
-	args = parser.parse_args()
-	X = parse_annotations(args.PATH_TO_DATA)
+	X = parse_annotations()
+	# parser = argparse.ArgumentParser()
 	# parser.add_argument("plot", help = "Choose from pca, tsne, etc.")
 	# parser.add_argument("figure_name", help = "Figure name to be saved")
 	# args = parser.parse_args()
 	# plotter_func = locals()[args.plot]
 	# plotter_func(args.figure_name, X)
 
-	X_pca = pca(X)
-	plot_annotated_embedding(X_pca, figure_name = 'pca_tsne_test.png', title = 't-SNE (PCA) conv5b')
-	# X_tsne_scaled, X_tsne_norm, X_tsne_pca, X_tsne_zca  = plot_all()
-	# plotNames = ["X_tsne_scaled", "X_tsne_norm", "X_tsne_pca", "X_tsne_zca"]
+	# X_pca = pca(X)
+	# plot_annotated_embedding(X_pca, figure_name = 'pca_tsne_test.png', title = 't-SNE (PCA) conv5b')
+	X_tsne_scaled, X_tsne_norm, X_tsne_pca, X_tsne_zca  = plot_all()
+	plotNames = ["X_tsne_scaled", "X_tsne_norm", "X_tsne_pca", "X_tsne_zca"]
 
-	# for plotName in plotNames:
-	# 	plot_annotated_embedding (X=eval(plotName), figure_name='8fps_cropped_conv5b_'+plotName, title=plotName+'_conv5b')
+	for plotName in plotNames:
+		plot_annotated_embedding (X=eval(plotName), figure_name='8fps_cropped_conv5b_'+plotName, title=plotName+'_conv5b')

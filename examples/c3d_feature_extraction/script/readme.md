@@ -4,9 +4,10 @@ To read video properties:
 
 exiftool ___
 
-To convert video file to images and control frame rate:
-
-ffmpeg -i Suturing_B004_capture1.avi -r 16 frm_test_16/image-%3d.jpg
+Image/video Pre-processing:
+ffmpeg -i <video> -r <fps> <path>/%6d.jpg
+ffmpeg -i <input video> -filter:v "crop=640:480:x:y" <output video>
+ffmpeg -i <input video> -vf scale=640:480 <output video>
 
 To find total number of files in the folder:
 

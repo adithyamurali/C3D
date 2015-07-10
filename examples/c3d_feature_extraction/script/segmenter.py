@@ -34,10 +34,10 @@ class Segmenter():
 			index = int(raw_input("Which index?"))
 			start_frm = int(raw_input("Starting frame?"))
 			end_frm = int(raw_input("End frame?"))
-			new_segment = (int(start_frm), int(end_frm))
-			segment_list = self.map_index_data[int(index)]
+			new_segment = (start_frm, end_frm)
+			segment_list = self.map_index_data[index]
 			segment_list.append(new_segment)
-			self.map_index_data[int(index)] = segment_list
+			self.map_index_data[index] = segment_list
 			user_ret = raw_input("Done with specifing segments?[y/n]")
 			if user_ret == 'y':
 				exit = True
